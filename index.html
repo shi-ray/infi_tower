@@ -153,20 +153,29 @@
         generateEvents();
     }
 
-    // 隨機生成事件
+    // 隨機生成事件（已修改為 10 的倍數層只能戰鬥）
     function generateEvents() {
         updateUI();
-        renderScene(`你來到了第 ${player.layer} 層，前方有幾條未知的路徑。`, [
-            { label: '【戰鬥】踹開紅色的門', action: () => eventCombat() },
-            { label: '【探索】調查角落的廢墟', action: () => eventExplore() },
-            { label: '【商店】靠近微光的終端機', action: () => eventShop() }
-        ]);
+        
+        // 判斷是否為 10 的倍數層 (10, 20, 30...)
+        if (player.layer % 10 === 0) {
+            renderScene(`你來到了第 ${player.layer} 層，這裡散發著危險的氣息，你沒有其他退路，只能選擇迎戰！`, [
+                { label: '【首領戰】硬著頭皮上吧', action: () => eventCombat() }
+            ]);
+        } else {
+            // 正常層數的選項
+            renderScene(`你來到了第 ${player.layer} 層，前方有幾條未知的路徑。`, [
+                { label: '【戰鬥】踹開紅色的門', action: () => eventCombat() },
+                { label: '【探索】調查角落的廢墟', action: () => eventExplore() },
+                { label: '【商店】靠近微光的終端機', action: () => eventShop() }
+            ]);
+        }
     }
 
     // 事件：戰鬥
     function eventCombat() {
-        let enemyHp = 20 + player.layer * player.layer * 3;
-        let enemyAtk = 5 + player.layer * player.layer;
+        let enemyHp = 20 + Math.floor(Math.pow(player.layer, 2.5) * 0.5);
+        let enemyAtk = 5 + Math.floor(player.layer * player.layer * 0.2);
         let atk = getAtk();
         
         let log = `你遭遇了守衛！(HP: ${enemyHp}, ATK: ${enemyAtk})<br><br>`;
