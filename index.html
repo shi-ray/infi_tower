@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>無盡之塔</title>
+    <style>
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        #game-container {
+            width: 100%;
+            max-width: 600px;
+            border: 1px solid #30363d;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #161b22;
+        }
+        #stats-bar {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            border-bottom: 1px dashed #30363d;
+            padding-bottom: 15px;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        #relics-bar {
+            font-size: 0.9em;
+            color: #3fb950;
+            margin-bottom: 20px;
+            min-height: 20px;
+        }
+        #story-box {
+            font-size: 1.1em;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            min-height: 100px;
+        }
+        .choice-btn {
+            display: block;
+            width: 100%;
+            background-color: #21262d;
+            color: #c9d1d9;
+            border: 1px solid #30363d;
+            padding: 12px;
+            margin-bottom: 10px;
+            font-family: inherit;
+            font-size: 1em;
+            cursor: pointer;
+            text-align: left;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .choice-btn:hover {
+            background-color: #30363d;
+            border-color: #8b949e;
+        }
+        .warning {
+            color: #f85149;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="stats-bar">
+        <span id="stat-layer">層數: 1</span>
+        <span id="stat-hp">HP: 100/100</span>
+        <span id="stat-atk">算力: 10</span>
+        <span id="stat-def">載荷: 5</span>
+        <span id="stat-coin">源石: 0</span>
+    </div>
+    <div id="relics-bar">銘文：無</div>
+    
+    <div id="story-box">系統啟動中...</div>
+    
+    <div id="choices-box"></div>
+</div>
+
+<script>
+    // 遊戲狀態與數值
+    let player = {
+        layer: 1,
+        hp: 100,
+        maxHp: 100,
+        baseAtk: 10,
+        def: 5,
+        coin: 0,
+        relics: {
+            ironWall: 0,  // 鐵壁：每層載荷+1
+            siphon: 0,    // 汲取：戰鬥勝利最大HP+2
+            giant: 0      // 巨力：算力額外增加 (載荷 * 1)
+        }
+    };
+
+    // 計算當前真實算力 (包含銘文加成)
+    function getAtk() {
+        return player.baseAtk + (player.relics.giant * player.def);
+    }
+
+    // 更新畫面顯示
+    function updateUI() {
+        if (player.hp <= 0) {
+            gameOver();
+            return;
+        }
+        if (player.hp > player.maxHp) player.hp = player.maxHp;
+
+        document.getElementById('stat-layer').innerText = `層數: ${player.layer}`;
+        document.getElementById('stat-hp').innerText = `HP: ${player.hp}/${player.maxHp}`;
+        document.getElementById('stat-atk').innerText = `算力: ${getAtk()}`;
+        document.getElementById('stat-def').innerText = `載荷: ${player.def}`;
+        document.getElementById('stat-coin').innerText = `源石: ${player.coin}`;
+
+        // 更新銘文顯示
+        let relicText = [];
+        if (player.relics.ironWall > 0) relicText.push(`[鐵壁]x${player.relics.ironWall}`);
+        if (player.relics.siphon > 0) relicText.push(`[汲取]x${player.relics.siphon}`);
+        if (player.relics.giant > 0) relicText.push(`[巨力]x${player.relics.giant}`);
+        document.getElementById('relics-bar').innerText = relicText.length > 0 ? `銘文：${relicText.join(' ')}` : '銘文：無';
+    }
+
+    // 渲染對話與選項
+    function renderScene(text, choices) {
+        document.getElementById('story-box').innerHTML = text;
+        const choicesBox = document.getElementById('choices-box');
+        choicesBox.innerHTML = '';
+        
+        choices.forEach(choice => {
+            const btn = document.createElement('button');
+            btn.className = 'choice-btn';
+            btn.innerText = choice.label;
+            btn.onclick = choice.action;
+            choicesBox.appendChild(btn);
+        });
+    }
+
+    // 進入下一層的觸發機制
+    function nextLayer() {
+        player.layer++;
+        // 觸發 [鐵壁] 銘文效果
+        if (player.relics.ironWall > 0) {
+            player.def += player.relics.ironWall;
+        }
+        generateEvents();
+    }
+
+    // 隨機生成事件
+    function generateEvents() {
+        updateUI();
+        renderScene(`你來到了第 ${player.layer} 層，前方有幾條未知的路徑。`, [
+            { label: '【戰鬥】踹開紅色的門', action: () => eventCombat() },
+            { label: '【探索】調查角落的廢墟', action: () => eventExplore() },
+            { label: '【商店】靠近微光的終端機', action: () => eventShop() }
+        ]);
+    }
+
+    // 事件：戰鬥
+    function eventCombat() {
+        let enemyHp = 20 + player.layer * player.layer * 3;
+        let enemyAtk = 5 + player.layer * player.layer;
+        let atk = getAtk();
+        
+        let log = `你遭遇了守衛！(HP: ${enemyHp}, ATK: ${enemyAtk})<br><br>`;
+        
+        // 簡易戰鬥計算：玩家先手
+        let turnsToKill = Math.ceil(enemyHp / atk);
+        let dmgTaken = (turnsToKill - 1) * Math.max(0, enemyAtk - player.def); // 載荷抵銷傷害
+
+        player.hp -= dmgTaken;
+        
+        if (player.hp > 0) {
+            let coinsEarned = 15 + Math.floor(Math.random() * 50);
+            player.coin += coinsEarned;
+            log += `你花費了 ${turnsToKill} 回合擊敗守衛。<br>`;
+            log += `受到 <span class="warning">${dmgTaken}</span> 點傷害，獲得 ${coinsEarned} 源石。<br>`;
+            
+            // 觸發 [汲取] 銘文效果
+            if (player.relics.siphon > 0) {
+                let hpBonus = player.relics.siphon * 2;
+                player.maxHp += hpBonus;
+                player.hp += hpBonus;
+                log += `[汲取] 觸發：最大生命值 +${hpBonus}！<br>`;
+            }
+        } else {
+            log += `你承受了過多傷害...`;
+        }
+
+        renderScene(log, [{ label: '繼續前進', action: () => nextLayer() }]);
+        updateUI();
+    }
+
+    // 事件：探索
+    function eventExplore() {
+        let roll = Math.random();
+        let log = "你在廢墟中翻找...<br><br>";
+        
+        if (roll < 0.3) {
+            let dmg = Math.max(1, 15 - player.def);
+            player.hp -= dmg;
+            log += `觸發了陷阱！受到 <span class="warning">${dmg}</span> 點傷害。`;
+        } else if (roll < 0.7) {
+            player.baseAtk += 2;
+            log += `找到一把損壞的武器。基礎算力 +2！`;
+        } else {
+            let coinBonus = 25;
+            player.coin += coinBonus;
+            log += `發現了隱藏的保險箱！獲得 ${coinBonus} 源石。`;
+        }
+
+        renderScene(log, [{ label: '繼續前進', action: () => nextLayer() }]);
+        updateUI();
+    }
+
+    // 事件：商店
+    function eventShop() {
+        let log = "這是一台老舊的升級終端機。";
+        let choices = [
+            { label: '離開終端機', action: () => nextLayer() }
+        ];
+
+        if (player.coin >= 30) {
+            choices.unshift({ 
+                label: '花費 30 源石：購買【鐵壁】銘文 (每層載荷+1)', 
+                action: () => { player.coin -= 30; player.relics.ironWall++; eventShop(); } 
+            });
+        }
+        if (player.coin >= 40) {
+            choices.unshift({ 
+                label: '花費 40 源石：購買【汲取】銘文 (擊殺敵人最大HP+2)', 
+                action: () => { player.coin -= 40; player.relics.siphon++; eventShop(); } 
+            });
+        }
+        if (player.coin >= 50) {
+            choices.unshift({ 
+                label: '花費 50 源石：購買【巨力】銘文 (算力附加載荷數值)', 
+                action: () => { player.coin -= 50; player.relics.giant++; eventShop(); } 
+            });
+        }
+        if (player.coin >= 15) {
+            choices.unshift({ 
+                label: '花費 15 源石：恢復 30 HP', 
+                action: () => { player.coin -= 15; player.hp += 30; eventShop(); } 
+            });
+        }
+
+        renderScene(log, choices);
+        updateUI();
+    }
+
+    // 遊戲結束
+    function gameOver() {
+        document.getElementById('stats-bar').style.display = 'none';
+        document.getElementById('relics-bar').style.display = 'none';
+        renderScene(`<span class="warning">系統崩潰。你的算力已耗盡。</span><br>你最終抵達了第 ${player.layer} 層。`, [
+            { label: '重新啟動', action: () => location.reload() }
+        ]);
+    }
+
+    // 遊戲初始化
+    generateEvents();
+
+</script>
+</body>
+</html>
